@@ -111,7 +111,9 @@ thread_init (void)
 void
 thread_start (void) 
 {
+    //---------To Be Removed ------------------//
     thread_mlfqs = true;
+    //----------------------------------------//
   /* Create the idle thread. */
   struct semaphore idle_started;
   sema_init (&idle_started, 0);
