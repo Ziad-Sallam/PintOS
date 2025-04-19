@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "fixed-point.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -97,6 +98,12 @@ struct thread
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
 #endif
+
+    //--------------------- Solution (Z) -----------------//
+    int nice;
+    fixed_t recent_cpu;
+   //-------------------- End ------------------------//
+
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */

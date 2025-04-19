@@ -11,6 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "devices/timer.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -36,6 +37,9 @@ static struct thread *initial_thread;
 
 /* Lock used by allocate_tid(). */
 static struct lock tid_lock;
+
+/* System Load average */
+static fixed_t load_avg;
 
 /* Stack frame for kernel_thread(). */
 struct kernel_thread_frame 
@@ -93,6 +97,8 @@ thread_init (void)
   list_init (&ready_list);
   list_init (&all_list);
 
+  load_avg = 0;
+
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
@@ -105,6 +111,7 @@ thread_init (void)
 void
 thread_start (void) 
 {
+    thread_mlfqs = true;
   /* Create the idle thread. */
   struct semaphore idle_started;
   sema_init (&idle_started, 0);
@@ -124,6 +131,7 @@ thread_tick (void)
 {
   struct thread *t = thread_current ();
 
+
   /* Update statistics. */
   if (t == idle_thread)
     idle_ticks++;
@@ -136,7 +144,26 @@ thread_tick (void)
 
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
-    intr_yield_on_return ();
+      {
+      intr_yield_on_return ();
+      //printf("thread_mlfqs = %d\n", thread_mlfqs);
+      }
+
+  if(thread_mlfqs){
+    t->recent_cpu = FP_ADD_MIX(t->recent_cpu, 1);
+    if(timer_ticks() % TIMER_FREQ == 0){
+        enum intr_level old_level;
+
+        ASSERT (is_thread (t));
+      old_level = intr_disable ();
+
+        int num_of_waiting_threads = (list_size (&ready_list)) + ((thread_current () != idle_thread) ? 1 : 0);
+
+        load_avg = FP_ADD (FP_DIV_MIX (FP_MULT_MIX (load_avg, 59), 60), FP_DIV_MIX (FP_CONST (num_of_waiting_threads), 60));
+      //printf("load_avg = %d\n",load_avg);
+        intr_set_level (old_level);
+    }
+  }
 }
 
 /* Prints thread statistics. */
@@ -365,7 +392,7 @@ int
 thread_get_load_avg (void) 
 {
   /* Not yet implemented. */
-  return 0;
+  return FP_ROUND(FP_MULT_MIX(load_avg,100));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
@@ -462,6 +489,11 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+
+  //--------------------- Solution (Z) -----------------//
+  t->nice = 0;
+  t->recent_cpu = 0;
+  //-------------------- End ------------------------//
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
