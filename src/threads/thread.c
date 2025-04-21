@@ -74,6 +74,7 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
+void mlfqs_one_second(void);
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -133,7 +134,6 @@ thread_tick (void)
 {
   struct thread *t = thread_current ();
 
-
   /* Update statistics. */
   if (t == idle_thread)
     idle_ticks++;
@@ -148,22 +148,15 @@ thread_tick (void)
   if (++thread_ticks >= TIME_SLICE)
       {
       intr_yield_on_return ();
-      //printf("thread_mlfqs = %d\n", thread_mlfqs);
       }
 
   if(thread_mlfqs){
-    t->recent_cpu = FP_ADD_MIX(t->recent_cpu, 1);
+    if(t != idle_thread){
+		t->recent_cpu = FP_ADD_MIX(t->recent_cpu, 1);
+		printf("recent: %d\n", FP_ROUND(t->recent_cpu));
+	}
     if(timer_ticks() % TIMER_FREQ == 0){
-        enum intr_level old_level;
-
-        ASSERT (is_thread (t));
-      old_level = intr_disable ();
-
-        int num_of_waiting_threads = (list_size (&ready_list)) + ((thread_current () != idle_thread) ? 1 : 0);
-
-        load_avg = FP_ADD (FP_DIV_MIX (FP_MULT_MIX (load_avg, 59), 60), FP_DIV_MIX (FP_CONST (num_of_waiting_threads), 60));
-      //printf("load_avg = %d\n",load_avg);
-        intr_set_level (old_level);
+        mlfqs_one_second();
     }
   }
 }
@@ -379,6 +372,7 @@ void
 thread_set_nice (int nice UNUSED) 
 {
   /* Not yet implemented. */
+	thread_current ()->nice = nice;
 }
 
 /* Returns the current thread's nice value. */
@@ -386,7 +380,7 @@ int
 thread_get_nice (void) 
 {
   /* Not yet implemented. */
-  return 0;
+  return thread_current ()->nice;
 }
 
 /* Returns 100 times the system load average. */
@@ -616,3 +610,24 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+void thread_recent_calc(struct thread *t, void *aux UNUSED){
+	ASSERT(t != NULL);
+    t->recent_cpu = FP_ADD_MIX(
+						FP_MULT(
+							FP_DIV(FP_MULT_MIX(load_avg,2),FP_ADD_MIX(FP_MULT_MIX(load_avg,2),1))
+						,t->recent_cpu),
+					t->nice);
+}
+
+void mlfqs_one_second(void){
+
+      enum intr_level old_level = intr_disable ();
+
+        int num_of_waiting_threads = (list_size (&ready_list)) + ((thread_current () != idle_thread) ? 1 : 0);
+
+        load_avg = FP_DIV_MIX(FP_ADD_MIX(FP_MULT_MIX(load_avg,59),num_of_waiting_threads),60);
+      //printf("load_avg = %d\n",load_avg);
+		thread_foreach(thread_recent_calc,NULL);
+        intr_set_level (old_level);
+}
