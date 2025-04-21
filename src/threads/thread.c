@@ -153,7 +153,7 @@ thread_tick (void)
   if(thread_mlfqs){
     if(t != idle_thread){
 		t->recent_cpu = FP_ADD_MIX(t->recent_cpu, 1);
-		printf("recent: %d\n", FP_ROUND(t->recent_cpu));
+		//printf("recent: %d\n", FP_ROUND(t->recent_cpu));
 	}
     if(timer_ticks() % TIMER_FREQ == 0){
         mlfqs_one_second();
@@ -396,7 +396,8 @@ int
 thread_get_recent_cpu (void) 
 {
   /* Not yet implemented. */
-  return 0;
+  printf("recent: %d\n", FP_ROUND(thread_current()->recent_cpu));
+  return FP_ROUND(FP_MULT_MIX(thread_current()->recent_cpu,100));
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -627,7 +628,8 @@ void mlfqs_one_second(void){
         int num_of_waiting_threads = (list_size (&ready_list)) + ((thread_current () != idle_thread) ? 1 : 0);
 
         load_avg = FP_DIV_MIX(FP_ADD_MIX(FP_MULT_MIX(load_avg,59),num_of_waiting_threads),60);
-      //printf("load_avg = %d\n",load_avg);
+        printf("load_avg = %d\n",FP_ROUND(load_avg));
+		printf("num_of_waiting_threads : %d\n", list_size (&ready_list));
 		thread_foreach(thread_recent_calc,NULL);
         intr_set_level (old_level);
 }
