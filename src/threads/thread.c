@@ -117,7 +117,7 @@ void
 thread_start (void) 
 {
     //---------To Be Removed ------------------//
-    thread_mlfqs = true;
+    // thread_mlfqs = true;
     //----------------------------------------//
   /* Create the idle thread. */
   struct semaphore idle_started;
@@ -169,8 +169,8 @@ thread_tick (void)
 void
 thread_print_stats (void) 
 {
-  printf ("Thread: %lld idle ticks, %lld kernel ticks, %lld user ticks\n",
-          idle_ticks, kernel_ticks, user_ticks);
+  // printf ("Thread: %lld idle ticks, %lld kernel ticks, %lld user ticks\n",
+  //         idle_ticks, kernel_ticks, user_ticks);
 }
 
 /* Creates a new kernel thread named NAME with the given initial
@@ -246,7 +246,11 @@ thread_block (void)
   schedule ();
 }
 
-list_less_func thread_wakeup_time_less;
+bool thread_wakeup_time_less(const struct list_elem *a, const struct list_elem *b, void *aux) {
+  struct thread *t1 = list_entry(a, struct thread, elem);
+  struct thread *t2 = list_entry(b, struct thread, elem);
+  return  t1->wakeup_time < t2->wakeup_time;
+}
 
 void
 thread_sleep(int64_t ticks) 
@@ -254,16 +258,19 @@ thread_sleep(int64_t ticks)
   struct thread *cur = thread_current ();
   enum intr_level old_level;
 
-  ASSERT (intr_get_level () == INTR_OFF);
+  old_level = intr_disable ();
 
   cur->wakeup_time = ticks + timer_ticks();
   list_insert_ordered(&sleeping_list, &cur->elem, thread_wakeup_time_less, NULL);
   thread_block();
+
+  intr_set_level (old_level);
 }
 
 void
 thread_wakeup(int64_t ticks) 
 {
+  enum intr_level old_level = intr_disable ();
   struct list_elem *e = list_begin(&sleeping_list);
   while (e != list_end(&sleeping_list)) {
     struct thread *t = list_entry(e, struct thread, elem);
@@ -274,6 +281,8 @@ thread_wakeup(int64_t ticks)
       e = list_next(e);
     }
   }
+
+  intr_set_level (old_level);
 }
 
 /* Transitions a blocked thread T to the ready-to-run state.
@@ -430,7 +439,7 @@ int
 thread_get_recent_cpu (void) 
 {
   /* Not yet implemented. */
-  printf("recent: %d\n", FP_ROUND(thread_current()->recent_cpu));
+  // printf("recent: %d\n", FP_ROUND(thread_current()->recent_cpu));
   return FP_ROUND(FP_MULT_MIX(thread_current()->recent_cpu,100));
 }
 
@@ -662,8 +671,8 @@ void mlfqs_one_second(void){
         int num_of_waiting_threads = (list_size (&ready_list)) + ((thread_current () != idle_thread) ? 1 : 0);
 
         load_avg = FP_DIV_MIX(FP_ADD_MIX(FP_MULT_MIX(load_avg,59),num_of_waiting_threads),60);
-        printf("load_avg = %d\n",FP_ROUND(load_avg));
-		printf("num_of_waiting_threads : %d\n", list_size (&ready_list));
+    //     printf("load_avg = %d\n",FP_ROUND(load_avg));
+		// printf("num_of_waiting_threads : %d\n", list_size (&ready_list));
 		thread_foreach(thread_recent_calc,NULL);
         intr_set_level (old_level);
 }

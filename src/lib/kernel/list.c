@@ -179,20 +179,20 @@ list_insert (struct list_elem *before, struct list_elem *elem)
 
 
 //MahmoudMonir
-void
-list_insert_ordered (struct list *list,struct list_elem *elem,list_less_func *less, void *aux)
-{
-  struct list_elem *e;
+// void
+// list_insert_ordered (struct list *list,struct list_elem *elem,list_less_func *less, void *aux)
+// {
+//   struct list_elem *e;
   
 
-  for (e = list_begin (list); e != list_end (list); e = list_next (e))
-    if (less (elem, e, aux))
-      {
-        list_insert (e, elem);
-        return;
-      }
-  list_push_back (list, elem);
-}
+//   for (e = list_begin (list); e != list_end (list); e = list_next (e))
+//     if (less (elem, e, aux))
+//       {
+//         list_insert (e, elem);
+//         return;
+//       }
+//   list_push_back (list, elem);
+// }
 
 /* Removes elements FIRST though LAST (exclusive) from their
    current list, then inserts them just before BEFORE, which may
