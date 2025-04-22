@@ -29,6 +29,9 @@ static struct list ready_list;
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
 
+/* List of sleeping threads. */
+static struct list sleeping_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -97,6 +100,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&sleeping_list);
 
   load_avg = 0;
 
@@ -240,6 +244,36 @@ thread_block (void)
 
   thread_current ()->status = THREAD_BLOCKED;
   schedule ();
+}
+
+list_less_func thread_wakeup_time_less;
+
+void
+thread_sleep(int64_t ticks) 
+{
+  struct thread *cur = thread_current ();
+  enum intr_level old_level;
+
+  ASSERT (intr_get_level () == INTR_OFF);
+
+  cur->wakeup_time = ticks + timer_ticks();
+  list_insert_ordered(&sleeping_list, &cur->elem, thread_wakeup_time_less, NULL);
+  thread_block();
+}
+
+void
+thread_wakeup(int64_t ticks) 
+{
+  struct list_elem *e = list_begin(&sleeping_list);
+  while (e != list_end(&sleeping_list)) {
+    struct thread *t = list_entry(e, struct thread, elem);
+    if (t->wakeup_time <= ticks) {
+      e = list_remove(e);
+      thread_unblock(t);
+    } else {
+      e = list_next(e);
+    }
+  }
 }
 
 /* Transitions a blocked thread T to the ready-to-run state.
