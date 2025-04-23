@@ -6,7 +6,8 @@
 #include "devices/pit.h"
 #include "threads/interrupt.h"
 #include "threads/synch.h"
-#include "threads/thread.h"
+
+// #include "threads/idle.h" // Include the header where idle_thread is declared
   
 /* See [8254] for hardware details of the 8254 timer chip. */
 
@@ -175,14 +176,30 @@ timer_print_stats (void)
 
 /* Timer interrupt handler. */
 static void
-timer_interrupt (struct intr_frame *args UNUSED)
-{
-  ticks++;
-  thread_tick ();
-
-  thread_wakeup(ticks);
+timer_interrupt(struct intr_frame *args UNUSED) {
+    ticks++;                   
+    thread_tick();              
+    if (thread_mlfqs) {          
+        enum intr_level old_level = intr_disable();  
+        if (ticks % TIMER_FREQ == 0) {               
+            mlfqs_one_second();                     
+        if (ticks % 4 == 0) {                     
+            thread_foreach(calculate_priority_depending_on_nice, NULL);
+        }
+        intr_set_level(old_level);                 
+    }
+    // Wake up blocked threads whose sleep time has expired
+    struct list_elem *e;
+    for (e = list_begin(&blocked_threads); e != list_end(&blocked_threads); ) {
+        struct thread *t = list_entry(e, struct thread, elem);
+        e = list_next(e);                          
+        if (t->end_ticks <= ticks) {                  
+            list_remove(&t->elem);                    
+            thread_unblock(t);                  
+        }
+    }
+ }
 }
-
 /* Returns true if LOOPS iterations waits for more than one timer
    tick, otherwise false. */
 static bool

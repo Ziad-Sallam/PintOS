@@ -396,36 +396,77 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
+void change_priority (struct thread *t)
+{
+  if(!list_empty(&(t->acquired_locks)))
+  {
+    int max_priority =(list_entry(list_front(&(t->acquired_locks)), struct lock,lock_position))->lock_priority;
+    if(t->priority < max_priority)
+    {
+      t->effective_priority = max_priority;
+    }
+    else
+    {
+      t->effective_priority = t->priority;
+
+    }
+  }
+  else
+  {
+    t->effective_priority = t->priority;
+  }
+  //function of semephore for incerintence 
+}
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
+  change_priority(thread_current());
+  enum intr_level old_level; // disable interrupts
+  old_level = intr_disable ();
+  if(!list_empty(&ready_list))
+  {
+    struct thread *t = list_entry(list_front(&ready_list), struct thread, elem); // get the highest pirtoty thread in the ready list
+    if(t->effective_priority > thread_current()->effective_priority)
+    {
+      thread_yield();
+    }
+  }
+  intr_set_level (old_level); // enable interrupts
 }
-
 /* Returns the current thread's priority. */
 int
 thread_get_priority (void) 
 {
   return thread_current ()->priority;
 }
-
 /* Sets the current thread's nice value to NICE. */
 void
 thread_set_nice (int nice UNUSED) 
 {
-  /* Not yet implemented. */
-	thread_current ()->nice = nice;
+  enum intr_level old_level; // disable interrupts
+  old_level = intr_disable ();
+  struct thread *t = thread_current();
+  t->nice = nice;
+  calcute_piority_depending_on_nice(t);
+  if(!list_empty(&ready_list))
+  {
+    struct thread *t = list_entry(list_front(&ready_list), struct thread, elem); // get the highest pirtoty thread in the ready list
+    if(t->effective_priority > thread_current()->effective_priority)
+    {
+      thread_yield();   // yield the current thread if the highest priority thread in the ready list has higher priority
+    }
+  }
+  intr_set_level (old_level); // enable interrupts
 }
-
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void) 
 {
-  /* Not yet implemented. */
-  return thread_current ()->nice;
+  struct thread *t = thread_current();
+  return t->nice;
 }
-
 /* Returns 100 times the system load average. */
 int
 thread_get_load_avg (void) 
@@ -433,7 +474,6 @@ thread_get_load_avg (void)
   /* Not yet implemented. */
   return FP_ROUND(FP_MULT_MIX(load_avg,100));
 }
-
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) 
@@ -452,6 +492,17 @@ thread_get_recent_cpu (void)
    blocks.  After that, the idle thread never appears in the
    ready list.  It is returned by next_thread_to_run() as a
    special case when the ready list is empty. */
+   void calcute_piority_depending_on_nice(struct thread* t) {
+    if (t == idle_thread) {
+        t->effective_priority = 0;
+        return;
+    }
+    //t->effective_priority = PRI_MAX - (t->recent_cpu / 4) - (t->nice * 2);
+    fixed_t term1 = FP_DIV_MIX(t->recent_cpu, 4);             
+    fixed_t term2 = FP_CONST(t->nice * 2);                    
+    fixed_t result = FP_SUB(FP_CONST(PRI_MAX), FP_ADD(term1, term2));  
+    t->effective_priority = FP_INT_PART(result);  
+  }
 static void
 idle (void *idle_started_ UNUSED) 
 {
@@ -529,7 +580,7 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
-
+  t->effective_priority = priority;
   //--------------------- Solution (Z) -----------------//
   t->nice = 0;
   t->recent_cpu = 0;
