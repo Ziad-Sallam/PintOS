@@ -90,13 +90,12 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
-    int effective_priority;         
-    int nice;                
-    int recent_cpu;         
+    int effective_priority;                 
     struct list acquired_locks; /* List of locks held by this thread. */
     struct list_elem elem;              /* List element. */
     int64_t wakeup_time;               /* Time to wake up. */
     int64_t end_ticks;                 /* Tick to wake up the thread (used by timer_sleep). */
+    struct lock *waits_for;             /* Lock the thread is waiting for. */
 
 
 #ifdef USERPROG
@@ -134,6 +133,8 @@ void thread_sleep (int64_t ticks);
 void thread_wakeup (int64_t ticks);
 void thread_unblock (struct thread *);
 
+bool thread_priority_comparator (struct list_elem *a, struct list_elem *b, void *aux);
+
 struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
@@ -155,3 +156,4 @@ int thread_get_load_avg (void);
 void calcute_piority_depending_on_nice(struct thread *t );
 
 #endif /* threads/thread.h */
+

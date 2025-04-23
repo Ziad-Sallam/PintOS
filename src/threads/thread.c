@@ -162,6 +162,9 @@ thread_tick (void)
     if(timer_ticks() % TIMER_FREQ == 0){
         mlfqs_one_second();
     }
+  //   if (timer_ticks()  % 4 == 0) {                     
+  //     thread_foreach(calcute_piority_depending_on_nice, NULL);
+  //  }
   }
 }
 
@@ -395,45 +398,38 @@ thread_foreach (thread_action_func *func, void *aux)
       func (t, aux);
     }
 }
+// It helps update a thread's effective priority based on:
+// Its own base priority, and The highest priority of any thread waiting on a lock it holds.
+void changeprioritylocks(struct thread* t){
+  if(!list_empty(&(t->acquired_locks))){
+    int max_priority_waiting = (list_entry(list_front(&(t->acquired_locks)), struct lock, lock_position))->lock_priority;
 
-void change_priority (struct thread *t)
-{
-  if(!list_empty(&(t->acquired_locks)))
-  {
-    int max_priority =(list_entry(list_front(&(t->acquired_locks)), struct lock,lock_position))->lock_priority;
-    if(t->priority < max_priority)
-    {
-      t->effective_priority = max_priority;
-    }
-    else
-    {
-      t->effective_priority = t->priority;
 
-    }
   }
-  else
-  {
-    t->effective_priority = t->priority;
-  }
-  //function of semephore for incerintence 
 }
+
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) 
 {
+
   thread_current ()->priority = new_priority;
-  change_priority(thread_current());
+  bool flag = false;
+  // changeprioritylocks(thread_current());
   enum intr_level old_level; // disable interrupts
   old_level = intr_disable ();
-  if(!list_empty(&ready_list))
-  {
-    struct thread *t = list_entry(list_front(&ready_list), struct thread, elem); // get the highest pirtoty thread in the ready list
-    if(t->effective_priority > thread_current()->effective_priority)
+  if(!list_empty(&ready_list)){
+    struct thread *top = list_entry(list_front(&ready_list),struct thread,elem); // get the highest pirtoty thread in the ready list
+    if(new_priority<top->effective_priority) // if the current thread has lower priority than the highest priority thread in the ready list
     {
-      thread_yield();
+      flag=true;  // yield the current thread if the highest priority thread in the ready list has higher priority
     }
   }
   intr_set_level (old_level); // enable interrupts
+  if(flag)
+  {
+    thread_yield(); // yield the current thread if the highest priority thread in the ready list has higher priority
+  }
 }
 /* Returns the current thread's priority. */
 int
@@ -452,6 +448,7 @@ thread_set_nice (int nice UNUSED)
   calcute_piority_depending_on_nice(t);
   if(!list_empty(&ready_list))
   {
+    // sort 
     struct thread *t = list_entry(list_front(&ready_list), struct thread, elem); // get the highest pirtoty thread in the ready list
     if(t->effective_priority > thread_current()->effective_priority)
     {
@@ -593,14 +590,14 @@ init_thread (struct thread *t, const char *name, int priority)
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
-   returns a pointer to the frame's base. */
+   returns a pointer to the int64_t wakeup_time;   frame's base. */
 static void *
 alloc_frame (struct thread *t, size_t size) 
 {
   /* Stack data is always allocated in word-size units. */
   ASSERT (is_thread (t));
   ASSERT (size % sizeof (uint32_t) == 0);
-
+  int64_t wakeup_time;  
   t->stack -= size;
   return t->stack;
 }
@@ -701,6 +698,11 @@ allocate_tid (void)
 
   return tid;
 }
+bool thread_priority_comparator (struct list_elem *a,struct list_elem *b, void *aux) {
+  struct thread *t1 = list_entry(a, struct thread, elem);
+  struct thread *t2 = list_entry(b, struct thread, elem);
+  return t1->effective_priority > t2->effective_priority;
+}
 
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
@@ -727,3 +729,4 @@ void mlfqs_one_second(void){
 		thread_foreach(thread_recent_calc,NULL);
         intr_set_level (old_level);
 }
+
