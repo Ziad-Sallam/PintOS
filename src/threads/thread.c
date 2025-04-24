@@ -376,12 +376,11 @@ thread_yield (void)
 {
   struct thread *cur = thread_current ();
   enum intr_level old_level;
-  
   ASSERT (!intr_context ());
-
   old_level = intr_disable ();
-  if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+  if (cur != idle_thread){
+    list_insert_ordered (&ready_list, &cur->elem,(list_less_func *)&thread_priority_comparator, NULL); // Insert the current thread into the ready list in order of priority.
+  }
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);

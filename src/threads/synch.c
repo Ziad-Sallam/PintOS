@@ -215,10 +215,8 @@ sema_test_helper (void *sema_)
        ASSERT (lock != NULL);
        ASSERT (!intr_context ());
        ASSERT (!lock_held_by_current_thread (lock));
-   
        thread_current ()->waits_for = lock;   // Set the lock that the current thread is waiting for.
        sema_down (&lock->semaphore); // Acquire the lock by decrementing the semaphore.
-   
        lock->holder = thread_current (); // Set the current thread as the holder of the lock.
        if (!thread_mlfqs) {
            thread_current()->waits_for = NULL; // Clear the waiting lock for the current thread.
@@ -241,10 +239,8 @@ bool
 lock_try_acquire (struct lock *lock)
 {
   bool success;
-
   ASSERT (lock != NULL);
   ASSERT (!lock_held_by_current_thread (lock));
-
   success = sema_try_down (&lock->semaphore);
   if (success)
     lock->holder = thread_current ();
@@ -265,8 +261,8 @@ lock_release (struct lock *lock)
     list_remove(&lock->lock_position); // Remove the lock from the current thread's acquired_locks list.
     PriorityLockschange(lock->holder); // Update the thread's effective priority based on the locks it holds.
   }
-  lock->holder = NULL;
-  sema_up (&lock->semaphore);
+  lock->holder = NULL; 
+  sema_up (&lock->semaphore); // Release the lock by incrementing the semaphore.
 }
 /* Returns true if the current thread holds LOCK, false
    otherwise.  (Note that testing whether some other thread holds
