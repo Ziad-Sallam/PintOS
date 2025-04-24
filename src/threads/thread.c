@@ -305,7 +305,7 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  list_insert_ordered (&ready_list, &t->elem,(list_less_func *)&thread_priority_comparator, NULL);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -403,11 +403,18 @@ thread_foreach (thread_action_func *func, void *aux)
 void changeprioritylocks(struct thread* t){
   if(!list_empty(&(t->acquired_locks))){
     int max_priority_waiting = (list_entry(list_front(&(t->acquired_locks)), struct lock, lock_position))->lock_priority;
-
-
+    if(t->priority > max_priority_waiting){  //Compares the thread’s original priority with the max donation it's receiving via locks.
+      t->effective_priority = t->priority;
+    }
+    else{
+      t->effective_priority = max_priority_waiting;
+    }
   }
+  else{
+    t->effective_priority = t->priority; //If the thread isn't holding any locks, its effective priority is just its base priority.
+  }
+  nestedpriority(t); //If Thread A is blocked by B, and B is blocked by C, then C may need to receive a donation too.
 }
-
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) 
@@ -415,7 +422,7 @@ thread_set_priority (int new_priority)
 
   thread_current ()->priority = new_priority;
   bool flag = false;
-  // changeprioritylocks(thread_current());
+  changeprioritylocks(thread_current());
   enum intr_level old_level; // disable interrupts
   old_level = intr_disable ();
   if(!list_empty(&ready_list)){
@@ -435,7 +442,7 @@ thread_set_priority (int new_priority)
 int
 thread_get_priority (void) 
 {
-  return thread_current ()->priority;
+  return thread_current ()->effective_priority;
 }
 /* Sets the current thread's nice value to NICE. */
 void
@@ -584,8 +591,9 @@ init_thread (struct thread *t, const char *name, int priority)
   //-------------------- End ------------------------//
   t->magic = THREAD_MAGIC;
 
-  old_level = intr_disable ();
-  list_push_back (&all_list, &t->allelem);
+  list_init (&t->acquired_locks); // Initialize the list of locks held by this thread.
+  old_level = intr_disable (); // disable interrupts
+  list_insert_ordered (&all_list, &t->allelem, thread_priority_comparator, NULL); // Insert the thread into the all_list in order of priority very important
   intr_set_level (old_level);
 }
 

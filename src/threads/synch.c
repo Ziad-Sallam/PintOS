@@ -69,7 +69,7 @@ sema_down (struct semaphore *sema)  // block
   while (sema->value == 0) {
       list_insert_ordered(&sema->waiters, &thread_current()->elem, &thread_priority_comparator, NULL); // Insert the current thread into the semaphore's waiters list in order of priority.
       if(!thread_mlfqs){
-        //changeprioritylocks(thread_current()); // Update the thread's effective priority based on the locks it holds.
+      changeprioritylocks(thread_current()); // Update the thread's effective priority based on the locks it holds.
       }
       thread_block ();
     }
@@ -259,7 +259,7 @@ lock_release (struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
   if(!thread_mlfqs){
     list_remove(&lock->lock_position); // Remove the lock from the current thread's acquired_locks list.
-    //changeprioritylocks(thread_current()); // Update the thread's effective priority based on the locks it holds.
+    changeprioritylocks(lock->holder); // Update the thread's effective priority based on the locks it holds.
   }
   lock->holder = NULL;
   sema_up (&lock->semaphore);
