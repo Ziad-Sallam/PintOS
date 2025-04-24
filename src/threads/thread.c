@@ -405,17 +405,20 @@ thread_foreach (thread_action_func *func, void *aux)
 }
 // It helps update a thread's effective priority based on:
 // Its own base priority, and The highest priority of any thread waiting on a lock it holds.
-void notifyChangeInLocksPriority(struct thread* t){
-  if(!list_empty(&(t->acquired_locks))) {
-    int maxPriorityInWaiters = (list_entry(list_front(&(t->acquired_locks)), struct lock, lock_position))->lock_priority;
-    if (t->priority > maxPriorityInWaiters)
+void PriorityLockschange(struct thread* t){
+  if(!list_empty(&(t->acquired_locks))) { // If the thread holds any locks 
+    int maxPriorityInWaiters = (list_entry(list_front(&(t->acquired_locks)), struct lock, lock_position))->lock_priority; // Get the highest priority of the threads waiting on the locks held by this thread.
+    if (t->priority > maxPriorityInWaiters) { // If the thread's own priority is higher than the highest priority of the waiters, set its effective priority to its own priority.
         t->effective_priority = t->priority;
-    else
-        t->effective_priority= maxPriorityInWaiters;
+    }
+    else{
+        t->effective_priority= maxPriorityInWaiters; // Otherwise, set its effective priority to the highest priority of the waiters.
+    }
 }
-else
-    t->effective_priority = t->priority;
-updateNestedPriority(t);
+else{
+    t->effective_priority = t->priority; // If the thread doesn't hold any locks, set its effective priority to its own priority.
+}
+updateNestedPriority(t); // Update the priority of the thread and its waiters.
 }
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
@@ -424,7 +427,7 @@ thread_set_priority (int new_priority)
 
   thread_current ()->priority = new_priority;
   bool flag = false;
-  notifyChangeInLocksPriority(thread_current());
+  PriorityLockschange(thread_current());
   enum intr_level old_level; // disable interrupts
   old_level = intr_disable ();
   if(!list_empty(&ready_list)){
@@ -708,10 +711,10 @@ allocate_tid (void)
 
   return tid;
 }
-bool thread_priority_comparator (struct list_elem *elem1, struct list_elem *elem2, void *aux){
+bool thread_priority_comparator (struct list_elem *elem1, struct list_elem *elem2, void *aux){ 
   struct thread * t1 = list_entry (elem1, struct thread, elem);
   struct thread * t2 = list_entry (elem2, struct thread, elem);
-  return t1->effective_priority > t2->effective_priority;
+  return t1->effective_priority > t2->effective_priority;  // descending order
 }
 
 /* Offset of `stack' member within `struct thread'.
