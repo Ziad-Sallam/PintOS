@@ -42,6 +42,7 @@ void cond_init (struct condition *);
 void cond_wait (struct condition *, struct lock *);
 void cond_signal (struct condition *, struct lock *);
 void cond_broadcast (struct condition *, struct lock *);
+bool highest_priority(struct list_elem *elem1, struct list_elem *elem2, void *aux);
 
 /* Optimization barrier.
 

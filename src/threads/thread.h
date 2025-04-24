@@ -135,7 +135,7 @@ void thread_unblock (struct thread *);
 
 bool thread_priority_comparator (struct list_elem *a, struct list_elem *b, void *aux);
 
-void changeprioritylocks(struct thread *t);
+void notifyChangeInLocksPriority(struct thread *t);
 
 struct thread *thread_current (void);
 tid_t thread_tid (void);
@@ -155,7 +155,7 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
-void calcute_piority_depending_on_nice(struct thread *t );
+
 
 #endif /* threads/thread.h */
 

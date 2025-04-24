@@ -191,47 +191,52 @@ thread_print_stats (void)
    The code provided sets the new thread's `priority' member to
    PRIORITY, but no actual priority scheduling is implemented.
    Priority scheduling is the goal of Problem 1-3. */
-tid_t
-thread_create (const char *name, int priority,
-               thread_func *function, void *aux) 
-{
-  struct thread *t;
-  struct kernel_thread_frame *kf;
-  struct switch_entry_frame *ef;
-  struct switch_threads_frame *sf;
-  tid_t tid;
-
-  ASSERT (function != NULL);
-
-  /* Allocate thread. */
-  t = palloc_get_page (PAL_ZERO);
-  if (t == NULL)
-    return TID_ERROR;
-
-  /* Initialize thread. */
-  init_thread (t, name, priority);
-  tid = t->tid = allocate_tid ();
-
-  /* Stack frame for kernel_thread(). */
-  kf = alloc_frame (t, sizeof *kf);
-  kf->eip = NULL;
-  kf->function = function;
-  kf->aux = aux;
-
-  /* Stack frame for switch_entry(). */
-  ef = alloc_frame (t, sizeof *ef);
-  ef->eip = (void (*) (void)) kernel_thread;
-
-  /* Stack frame for switch_threads(). */
-  sf = alloc_frame (t, sizeof *sf);
-  sf->eip = switch_entry;
-  sf->ebp = 0;
-
-  /* Add to run queue. */
-  thread_unblock (t);
-
-  return tid;
-}
+   tid_t thread_create (const char *name, int priority, thread_func *function, void *aux) {
+    struct thread *t;
+    struct kernel_thread_frame *kf;
+    struct switch_entry_frame *ef;
+    struct switch_threads_frame *sf;
+    tid_t tid;
+  
+    ASSERT (function != NULL);
+  
+    /* Allocate thread. */
+    t = palloc_get_page (PAL_ZERO);
+    if (t == NULL)
+      return TID_ERROR;
+  
+    /* Initialize thread. */
+    init_thread (t, name, priority);
+    tid = t->tid = allocate_tid ();
+  
+    /* Stack frame for kernel_thread(). */
+    kf = alloc_frame (t, sizeof *kf);
+    kf->eip = NULL;
+    kf->function = function;
+    kf->aux = aux;
+  
+    /* Stack frame for switch_entry(). */
+    ef = alloc_frame (t, sizeof *ef);
+    ef->eip = (void (*) (void)) kernel_thread;
+  
+    /* Stack frame for switch_threads(). */
+    sf = alloc_frame (t, sizeof *sf);
+    sf->eip = switch_entry;
+    sf->ebp = 0;
+  
+    /* Add to run queue. */
+    thread_unblock (t);
+  
+    /* 
+      Checks if the priority of the current thread is lower than the priority of the newly created thread. 
+      If so, it yields the processor to allow the new thread to execute immediately.
+    */
+    
+    if (thread_current()->priority < priority) 
+      thread_yield();
+    
+    return tid;
+  }
 
 /* Puts the current thread to sleep.  It will not be scheduled
    again until awoken by thread_unblock().
@@ -400,20 +405,17 @@ thread_foreach (thread_action_func *func, void *aux)
 }
 // It helps update a thread's effective priority based on:
 // Its own base priority, and The highest priority of any thread waiting on a lock it holds.
-void changeprioritylocks(struct thread* t){
-  if(!list_empty(&(t->acquired_locks))){
-    int max_priority_waiting = (list_entry(list_front(&(t->acquired_locks)), struct lock, lock_position))->lock_priority;
-    if(t->priority > max_priority_waiting){  //Compares the thread’s original priority with the max donation it's receiving via locks.
-      t->effective_priority = t->priority;
-    }
-    else{
-      t->effective_priority = max_priority_waiting;
-    }
-  }
-  else{
-    t->effective_priority = t->priority; //If the thread isn't holding any locks, its effective priority is just its base priority.
-  }
-  nestedpriority(t); //If Thread A is blocked by B, and B is blocked by C, then C may need to receive a donation too.
+void notifyChangeInLocksPriority(struct thread* t){
+  if(!list_empty(&(t->acquired_locks))) {
+    int maxPriorityInWaiters = (list_entry(list_front(&(t->acquired_locks)), struct lock, lock_position))->lock_priority;
+    if (t->priority > maxPriorityInWaiters)
+        t->effective_priority = t->priority;
+    else
+        t->effective_priority= maxPriorityInWaiters;
+}
+else
+    t->effective_priority = t->priority;
+updateNestedPriority(t);
 }
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
@@ -422,7 +424,7 @@ thread_set_priority (int new_priority)
 
   thread_current ()->priority = new_priority;
   bool flag = false;
-  changeprioritylocks(thread_current());
+  notifyChangeInLocksPriority(thread_current());
   enum intr_level old_level; // disable interrupts
   old_level = intr_disable ();
   if(!list_empty(&ready_list)){
@@ -442,7 +444,7 @@ thread_set_priority (int new_priority)
 int
 thread_get_priority (void) 
 {
-  return thread_current ()->effective_priority;
+  return thread_current ()-> effective_priority;
 }
 /* Sets the current thread's nice value to NICE. */
 void
@@ -706,9 +708,9 @@ allocate_tid (void)
 
   return tid;
 }
-bool thread_priority_comparator (struct list_elem *a,struct list_elem *b, void *aux) {
-  struct thread *t1 = list_entry(a, struct thread, elem);
-  struct thread *t2 = list_entry(b, struct thread, elem);
+bool thread_priority_comparator (struct list_elem *elem1, struct list_elem *elem2, void *aux){
+  struct thread * t1 = list_entry (elem1, struct thread, elem);
+  struct thread * t2 = list_entry (elem2, struct thread, elem);
   return t1->effective_priority > t2->effective_priority;
 }
 
