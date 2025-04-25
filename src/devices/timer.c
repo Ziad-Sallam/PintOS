@@ -200,6 +200,18 @@ timer_interrupt(struct intr_frame *args UNUSED) {
     }
  }
 }
+timer_interrupt (struct intr_frame *args UNUSED)
+{
+  ticks++;
+  if(timer_ticks() % TIMER_FREQ == 0){
+        mlfqs_one_second();
+        
+    }
+  thread_tick ();
+
+  thread_wakeup(ticks);
+}
+
 /* Returns true if LOOPS iterations waits for more than one timer
    tick, otherwise false. */
 static bool

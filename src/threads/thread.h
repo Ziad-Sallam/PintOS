@@ -154,4 +154,7 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 void calcute_piority_depending_on_nice(struct thread *t );
 
+void mlfqs_one_second(void);
+void try_thread_yield (void);
+
 #endif /* threads/thread.h */
