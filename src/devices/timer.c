@@ -6,9 +6,7 @@
 #include "devices/pit.h"
 #include "threads/interrupt.h"
 #include "threads/synch.h"
-#include "threads/thread.h" // Include the header where thread_mlfqs is declared 
-
-// #include "threads/idle.h" // Include the header where idle_thread is declared
+#include "threads/thread.h"
   
 /* See [8254] for hardware details of the 8254 timer chip. */
 
@@ -176,45 +174,10 @@ timer_print_stats (void)
 }
 
 /* Timer interrupt handler. */
-static void
-timer_interrupt(struct intr_frame *args UNUSED) {
-    ticks++;                   
-    thread_tick();              
-    if (thread_mlfqs) {          
-        enum intr_level old_level = intr_disable();      
-        intr_set_level(old_level);                 
-    }
-    // Wake up blocked threads whose sleep time has expired
-    // struct list_elem *e;
-    // for (e = list_begin(&blocked_threads); e != list_end(&blocked_threads); ) {
-    //     struct thread *t = list_entry(e, struct thread, elem);
-    //     e = list_next(e);                          
-    //     if (t->end_ticks <= ticks) {                  
-    //         list_remove(&t->elem);                    
-    //         thread_unblock(t);                  
-    //     }
-    // }
- }
-    struct list_elem *e;
-    for (e = list_begin(&blocked_threads); e != list_end(&blocked_threads); ) {
-        struct thread *t = list_entry(e, struct thread, elem);
-        e = list_next(e);                          
-        if (t->end_ticks <= ticks) {                  
-            list_remove(&t->elem);                    
-            thread_unblock(t);                  
-        }
-    }
- }
-}
-timer_interrupt (struct intr_frame *args UNUSED)
+static void timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
-  if(timer_ticks() % TIMER_FREQ == 0){
-        mlfqs_one_second();
-        
-    }
   thread_tick ();
-
   thread_wakeup(ticks);
 }
 
@@ -286,6 +249,5 @@ real_time_delay (int64_t num, int32_t denom)
   /* Scale the numerator and denominator down by 1000 to avoid
      the possibility of overflow. */
   ASSERT (denom % 1000 == 0);
-  busy_wait (loops_per_tick * num / 1000 * TIMER_FREQ / (denom / 1000)); 
+  busy_wait (loops_per_tick * num / 1000 * TIMER_FREQ / (denom/1000));
 }
-

@@ -166,10 +166,19 @@ thread_tick (void)
     if(timer_ticks() % TIMER_FREQ == 0){
         mlfqs_one_second();
     }
+    if(timer_ticks() % TIME_SLICE == 0){
+      thread_priority_calc(thread_current(),NULL);
+      print_stats(thread_current(),NULL);
+      printf("\n");
+    }
   //   if (timer_ticks()  % 4 == 0) {                     
   //     thread_foreach(calcute_piority_depending_on_nice, NULL);
   //  }
   }
+}
+void less_priority(struct list_elem *a, struct list_elem *b, void *aux) {
+  return list_entry (a, struct thread, elem)->priority >
+         list_entry (b, struct thread, elem)->priority;
 }
 
 /* Prints thread statistics. */
@@ -178,6 +187,9 @@ thread_print_stats (void)
 {
   // printf ("Thread: %lld idle ticks, %lld kernel ticks, %lld user ticks\n",
   //         idle_ticks, kernel_ticks, user_ticks);
+}
+void print_stats(struct thread *t, void *aux UNUSED){
+  printf("thread name: %s, priority: %d --", t->name,t->priority);
 }
 
 /* Creates a new kernel thread named NAME with the given initial
@@ -415,7 +427,7 @@ void PriorityLockschange(struct thread* t){
         t->effective_priority = t->priority;
     }
     else{
-        t->effective_priority= maxPriorityInWaiters; // Otherwise, set its effective priority to the highest priority of the waiters.
+        t->effective_priority= maxPriorityInWaiters; // Otherwise, set its effective priority to the highest priority of the waiters.  
     }
 }
 else{
@@ -456,21 +468,23 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice UNUSED) 
 {
-  enum intr_level old_level; // disable interrupts
-  old_level = intr_disable ();
-  struct thread *t = thread_current();
-  t->nice = nice;
-  calcute_piority_depending_on_nice(t);
-  if(!list_empty(&ready_list))
-  {
-    // sort 
-    struct thread *t = list_entry(list_front(&ready_list), struct thread, elem); // get the highest pirtoty thread in the ready list
-    if(t->effective_priority > thread_current()->effective_priority)
-    {
-      thread_yield();   // yield the current thread if the highest priority thread in the ready list has higher priority
-    }
-  }
-  intr_set_level (old_level); // enable interrupts
+  enum intr_level old_level = intr_disable ();
+	thread_current ()->nice = nice;
+  thread_priority_calc(thread_current(), NULL);
+  intr_set_level (old_level);
+  try_thread_yield();
+}
+void
+try_thread_yield (void)
+{
+  enum intr_level old_level = intr_disable ();
+  bool result = !list_empty (&ready_list) &&list_entry (list_front (&ready_list), struct thread, elem)->priority >thread_get_priority();
+  intr_set_level (old_level);
+  printf("Thread yield\n");
+  if (result)
+	{
+    thread_yield();
+ }
 }
 /* Returns the current thread's nice value. */
 int
@@ -629,7 +643,7 @@ next_thread_to_run (void)
   if (list_empty (&ready_list))
     return idle_thread;
   else
-    return list_entry (list_pop_back (&ready_list), struct thread, elem);
+  return list_entry (list_pop_front (&ready_list), struct thread, elem);
 }
 
 /* Completes a thread switch by activating the new thread's page
@@ -733,6 +747,17 @@ void thread_recent_calc(struct thread *t, void *aux UNUSED){
 						,t->recent_cpu),
 					t->nice);
       thread_priority_calc(t, NULL);
+}
+void thread_priority_calc(struct thread *t, void *aux UNUSED){
+
+  int new_priority = (int) FP_ROUND (
+    FP_SUB (FP_CONST ((PRI_MAX - ((t->nice) * 2))),
+  FP_DIV_MIX (t->recent_cpu, 4)));
+  if (new_priority > PRI_MAX)
+  new_priority = PRI_MAX;
+  else if (new_priority < PRI_MIN)
+  new_priority = PRI_MIN;
+  t->priority =new_priority;
 }
 
 void mlfqs_one_second(void){
