@@ -6,6 +6,7 @@
 #include "devices/pit.h"
 #include "threads/interrupt.h"
 #include "threads/synch.h"
+#include "threads/thread.h" // Include the header where thread_mlfqs is declared 
 
 // #include "threads/idle.h" // Include the header where idle_thread is declared
   
@@ -180,15 +181,20 @@ timer_interrupt(struct intr_frame *args UNUSED) {
     ticks++;                   
     thread_tick();              
     if (thread_mlfqs) {          
-        enum intr_level old_level = intr_disable();  
-        if (ticks % TIMER_FREQ == 0) {               
-            mlfqs_one_second();                     
-        if (ticks % 4 == 0) {                     
-            thread_foreach(calculate_priority_depending_on_nice, NULL);
-        }
+        enum intr_level old_level = intr_disable();      
         intr_set_level(old_level);                 
     }
     // Wake up blocked threads whose sleep time has expired
+    // struct list_elem *e;
+    // for (e = list_begin(&blocked_threads); e != list_end(&blocked_threads); ) {
+    //     struct thread *t = list_entry(e, struct thread, elem);
+    //     e = list_next(e);                          
+    //     if (t->end_ticks <= ticks) {                  
+    //         list_remove(&t->elem);                    
+    //         thread_unblock(t);                  
+    //     }
+    // }
+ }
     struct list_elem *e;
     for (e = list_begin(&blocked_threads); e != list_end(&blocked_threads); ) {
         struct thread *t = list_entry(e, struct thread, elem);
@@ -282,3 +288,4 @@ real_time_delay (int64_t num, int32_t denom)
   ASSERT (denom % 1000 == 0);
   busy_wait (loops_per_tick * num / 1000 * TIMER_FREQ / (denom / 1000)); 
 }
+
