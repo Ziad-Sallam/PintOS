@@ -417,7 +417,7 @@ void PriorityLockschange(struct thread* t){
 else{
     t->effective_priority = t->priority; // If the thread doesn't hold any locks, set its effective priority to its own priority.
 }
-updateNestedPriority(t); // Update the priority of the thread and its waiters.
+updateNestedPriority(t);  // Update the priority of the thread and any threads waiting on it.
 }
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
