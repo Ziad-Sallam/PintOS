@@ -78,6 +78,10 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 void mlfqs_one_second(void);
+void thread_priority_calc(struct thread *t, void *aux UNUSED);
+void less_priority(struct list_elem *a, struct list_elem *b, void *aux);
+void try_thread_yield(void);
+void print_stats(struct thread *t, void *aux UNUSED);
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -158,9 +162,14 @@ thread_tick (void)
     if(t != idle_thread){
 		t->recent_cpu = FP_ADD_MIX(t->recent_cpu, 1);
 		//printf("recent: %d\n", FP_ROUND(t->recent_cpu));
-	}
-    if(timer_ticks() % TIMER_FREQ == 0){
-        mlfqs_one_second();
+	 }
+    
+    if(timer_ticks() % TIME_SLICE == 0){
+      
+        thread_priority_calc(thread_current(), NULL);
+        //print_stats(thread_current(), NULL);
+        //printf("\n");
+
     }
   }
 }
@@ -223,9 +232,14 @@ thread_create (const char *name, int priority,
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
   sf->ebp = 0;
-
+  printf("Thread created: %s\n", t->name);
+  print_stats(t, NULL);
+  printf("\n");
+  
   /* Add to run queue. */
   thread_unblock (t);
+
+  try_thread_yield();
 
   return tid;
 }
@@ -302,7 +316,8 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  //list_push_back (&ready_list, &t->elem);
+  list_insert_ordered(&ready_list, &t->elem, less_priority, NULL);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -373,7 +388,9 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+    //list_push_back (&ready_list, &cur->elem);
+    list_insert_ordered(&ready_list, &cur->elem, less_priority, NULL);
+
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -400,7 +417,10 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
+  enum intr_level old_level = intr_disable ();
   thread_current ()->priority = new_priority;
+  intr_set_level (old_level);
+  try_thread_yield();
 }
 
 /* Returns the current thread's priority. */
@@ -414,8 +434,14 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice UNUSED) 
 {
-  /* Not yet implemented. */
+  enum intr_level old_level = intr_disable ();
+  
 	thread_current ()->nice = nice;
+  thread_priority_calc(thread_current(), NULL);
+
+  intr_set_level (old_level);
+  try_thread_yield();
+  
 }
 
 /* Returns the current thread's nice value. */
@@ -565,7 +591,7 @@ next_thread_to_run (void)
   if (list_empty (&ready_list))
     return idle_thread;
   else
-    return list_entry (list_pop_front (&ready_list), struct thread, elem);
+    return list_entry (list_pop_back (&ready_list), struct thread, elem);
 }
 
 /* Completes a thread switch by activating the new thread's page
@@ -657,11 +683,13 @@ uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
 void thread_recent_calc(struct thread *t, void *aux UNUSED){
 	ASSERT(t != NULL);
+  if(t == idle_thread) {t->priority =0;return;}
     t->recent_cpu = FP_ADD_MIX(
 						FP_MULT(
 							FP_DIV(FP_MULT_MIX(load_avg,2),FP_ADD_MIX(FP_MULT_MIX(load_avg,2),1))
 						,t->recent_cpu),
 					t->nice);
+      thread_priority_calc(t, NULL);
 }
 
 void mlfqs_one_second(void){
@@ -673,6 +701,46 @@ void mlfqs_one_second(void){
         load_avg = FP_DIV_MIX(FP_ADD_MIX(FP_MULT_MIX(load_avg,59),num_of_waiting_threads),60);
     //     printf("load_avg = %d\n",FP_ROUND(load_avg));
 		// printf("num_of_waiting_threads : %d\n", list_size (&ready_list));
-		thread_foreach(thread_recent_calc,NULL);
+		//thread_priority_calc(thread_current(), NULL);
+        thread_foreach(thread_recent_calc, NULL);
         intr_set_level (old_level);
+}
+
+void print_stats(struct thread *t, void *aux UNUSED){
+  printf("thread name: %s, priority: %d --", t->name, t->priority);
+}
+
+
+void thread_priority_calc(struct thread *t, void *aux UNUSED){
+
+  int new_priority = (int) FP_ROUND (
+    FP_SUB (FP_CONST ((PRI_MAX - ((t->nice) * 2))),
+  FP_DIV_MIX (t->recent_cpu, 4)));
+  if (new_priority > PRI_MAX)
+  new_priority = PRI_MAX;
+  else if (new_priority < PRI_MIN)
+  new_priority = PRI_MIN;
+  t->priority = new_priority;
+}
+
+void less_priority(struct list_elem *a, struct list_elem *b, void *aux) {
+  return list_entry (a, struct thread, elem)->priority <=
+         list_entry (b, struct thread, elem)->priority;
+}
+
+
+void
+try_thread_yield (void)
+{
+  enum intr_level old_level = intr_disable ();
+  bool result = !list_empty (&ready_list) &&
+                list_entry (list_back (&ready_list), struct thread, elem)->priority >
+	            thread_get_priority ();
+  intr_set_level (old_level);
+  printf("Thread yield\n");
+  
+  if (result)
+	{
+    thread_yield (); 
+  }
 }

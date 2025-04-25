@@ -178,6 +178,10 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
+  if(timer_ticks() % TIMER_FREQ == 0){
+        mlfqs_one_second();
+        
+    }
   thread_tick ();
 
   thread_wakeup(ticks);
