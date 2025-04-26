@@ -168,8 +168,10 @@ thread_tick (void)
     }
     if(timer_ticks() % TIME_SLICE == 0){
       thread_priority_calc(thread_current(),NULL);
-      print_stats(thread_current(),NULL);
-      printf("\n");
+      //schedule (); 
+      //print_stats(thread_current(),NULL);
+      //printf("\n");
+      
     }
   //   if (timer_ticks()  % 4 == 0) {                     
   //     thread_foreach(calcute_piority_depending_on_nice, NULL);
@@ -587,6 +589,7 @@ running_thread (void)
 static bool
 is_thread (struct thread *t)
 {
+  if(t== NULL) printf(":( :( :( found null thread\n"); // Check if the thread pointer is NULL
   return t != NULL && t->magic == THREAD_MAGIC;
 }
 
@@ -710,7 +713,7 @@ schedule (void)
   ASSERT (cur->status != THREAD_RUNNING);
   ASSERT (is_thread (next));
 
-  if (cur != next)
+  if (cur != next) 
     prev = switch_threads (cur, next);
   thread_schedule_tail (prev);
 }
@@ -728,9 +731,12 @@ allocate_tid (void)
 
   return tid;
 }
+
 bool thread_priority_comparator (struct list_elem *elem1, struct list_elem *elem2, void *aux){ 
   struct thread * t1 = list_entry (elem1, struct thread, elem);
   struct thread * t2 = list_entry (elem2, struct thread, elem);
+  if(thread_mlfqs)   return t1->priority > t2->priority;  // descending order
+
   return t1->effective_priority > t2->effective_priority;  // descending order
 }
 

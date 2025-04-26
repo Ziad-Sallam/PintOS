@@ -215,6 +215,8 @@ sema_test_helper (void *sema_)
        ASSERT (lock != NULL);
        ASSERT (!intr_context ());
        ASSERT (!lock_held_by_current_thread (lock));
+
+      enum intr_level old_level = intr_disable ();
        thread_current ()->waits_for = lock;   // Set the lock that the current thread is waiting for.
        sema_down (&lock->semaphore); // Acquire the lock by decrementing the semaphore.
        lock->holder = thread_current (); // Set the current thread as the holder of the lock.
@@ -228,6 +230,8 @@ sema_test_helper (void *sema_)
            }
            list_insert_ordered(&(lock->holder->acquired_locks), &(lock->lock_position), &compare_locks_priority, NULL); // Insert the lock into the current thread's acquired_locks list in order of priority.
        }
+        intr_set_level (old_level); // Restore the previous interrupt level.
+
    }
 /* Tries to acquires LOCK and returns true if successful or false
    on failure.  The lock must not already be held by the current
