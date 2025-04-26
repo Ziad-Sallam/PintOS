@@ -261,12 +261,14 @@ lock_release (struct lock *lock)
 {
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
+  enum intr_level old_level = intr_disable ();
   if(!thread_mlfqs){
     list_remove(&lock->lock_position); // Remove the lock from the current thread's acquired_locks list.
     PriorityLockschange(lock->holder); // Update the thread's effective priority based on the locks it holds.
   }
   lock->holder = NULL; 
   sema_up (&lock->semaphore); // Release the lock by incrementing the semaphore.
+  intr_set_level (old_level); // Restore the previous interrupt level.
 }
 /* Returns true if the current thread holds LOCK, false
    otherwise.  (Note that testing whether some other thread holds
