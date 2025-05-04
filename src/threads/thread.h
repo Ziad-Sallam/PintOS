@@ -93,6 +93,17 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
+    struct list child_list;             /* List of child processes. */
+    struct list_elem child_elem;        /* List element for child list. */
+    struct thread* parent;     
+    
+    struct list file_list; /* Parent thread. */
+
+    int fileDirectory; /* used in open system call */
+
+    int exit_status; /* Exit status of the thread. */
+
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -101,6 +112,12 @@ struct thread
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
+
+  struct opened_file{
+   int fd;
+   struct file* ptr;
+   struct list_elem elem;
+};
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
