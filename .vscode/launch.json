@@ -11,7 +11,7 @@
       "cwd": "d:/github/PintOS/src/threads",
       "program": "d:/github/PintOS/src/threads/build/Debug/outDebug",
       "MIMode": "gdb",
-      "miDebuggerPath": "gdb",
+      "miDebuggerPath": "C:/msys64/ucrt64/bin/gdb.exe",
       "setupCommands": [
         {
           "description": "Enable pretty-printing for gdb",
