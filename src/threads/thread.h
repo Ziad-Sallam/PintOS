@@ -93,6 +93,13 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
+    struct thread *parent;              /* Parent thread. */
+    struct list children;               /* List of child threads. */
+    struct list_elem child_elem;        /* List element for child threads. */
+    struct file *cur_file;              /* Current executable file. */
+
+    struct semaphore *waitForChildLoad;        /* Semaphore for waiting. */
+    
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */

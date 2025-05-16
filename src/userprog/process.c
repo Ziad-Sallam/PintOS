@@ -72,6 +72,13 @@ start_process (void *file_name_)
 	if_.eflags = FLAG_IF | FLAG_MBS;
 	success = load (file_name, &if_.eip, &if_.esp, &save_ptr);
 
+	struct thread *child = thread_current();
+    struct thread *parent = child->parent;
+
+	if(success){
+		sema_up(&parent->waitForChildLoad);  
+        sema_down(&child->waitForChildLoad);
+	}
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
 	if (!success)
@@ -235,11 +242,15 @@ load (const char *file_name, void (**eip) (void), void **esp, char **save_ptr)
 
 	/* Open executable file. */
 	file = filesys_open (file_name);
+
 	if (file == NULL)
 	{
 		printf ("load: %s: open failed\n", file_name);
 		goto done;
 	}
+
+	t->cur_file = file;
+
 	file_deny_write(file);
 
 	/* Read and verify executable header. */
