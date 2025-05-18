@@ -346,7 +346,13 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
     file_deny_write(file);
 
     /* Read and verify executable header. */
-    if (file_read(file, &ehdr, sizeof ehdr) != sizeof ehdr || memcmp(ehdr.e_ident, "\177ELF\1\1\1", 7) || ehdr.e_type != 2 || ehdr.e_machine != 3 || ehdr.e_version != 1 || ehdr.e_phentsize != sizeof(struct Elf32_Phdr) || ehdr.e_phnum > 1024)
+    if (file_read(file, &ehdr, sizeof ehdr) != sizeof ehdr 
+        || memcmp(ehdr.e_ident, "\177ELF\1\1\1", 7) 
+        || ehdr.e_type != 2 
+        || ehdr.e_machine != 3 
+        || ehdr.e_version != 1 
+        || ehdr.e_phentsize != sizeof(struct Elf32_Phdr) 
+        || ehdr.e_phnum > 1024)
     {
         printf("load: %s: error loading executable\n", file_name);
         goto done;

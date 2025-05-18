@@ -285,7 +285,6 @@ int write(int fd, void *buffer, int length)
         lock_release(&lock);
         return sizeActual;
     }
-    //printf("<---------------------------- fd = %d ---------------------------->\n", fd);
     struct file *file = fd2file(fd)->ptr;
     lock_acquire(&lock);
     if (file == NULL)
