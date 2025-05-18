@@ -25,42 +25,42 @@ tid_t process_execute(const char *file_name)
 {
     char *fn_copy;
     tid_t tid;
-    char *real_file_name; // to get first arg as file name
-    char *rest_of_path ; //it used as saved para in strtok_r
+    char *act_name; // to get first arg as file name
+    char *temp ; //it used as saved para in strtok_r
 
     /* Make a copy of FILE_NAME.
        Otherwise there's a race between the caller and load(). */
     fn_copy = palloc_get_page(0);
-    real_file_name = palloc_get_page(0);
-    if (fn_copy == NULL || real_file_name == NULL)
+    act_name = palloc_get_page(0);
+    if (fn_copy == NULL || act_name == NULL)
     {
         palloc_free_page(fn_copy);
-        palloc_free_page(real_file_name);
+        palloc_free_page(act_name);
         return TID_ERROR;
     }
     strlcpy(fn_copy, file_name, PGSIZE);
-    strlcpy(real_file_name, file_name, PGSIZE);
+    strlcpy(act_name, file_name, PGSIZE);
 
-    real_file_name = strtok_r(real_file_name, " ", &rest_of_path);
+    act_name = strtok_r(act_name, " ", &temp);
 
     /* Create a new thread to execute FILE_NAME. */
-    tid = thread_create(real_file_name, PRI_DEFAULT, start_process, fn_copy);
+    tid = thread_create(act_name, PRI_DEFAULT, start_process, fn_copy);
 
     if (tid == TID_ERROR)
     {
-        palloc_free_page(real_file_name);
+        palloc_free_page(act_name);
         palloc_free_page(fn_copy);
         return TID_ERROR;
     }
 
     // wait for the newly created thread to complete its initialization by calling sema_down
-    sema_down(&thread_current()->waitForChildLoad);
+    sema_down(&thread_current()->childLoad);
 
-    if (real_file_name){
-        palloc_free_page(real_file_name);   //name is not NULL
+    if (act_name){
+        palloc_free_page(act_name);   //name is not NULL
     }
 
-    if (!thread_current()->isCreated){
+    if (!thread_current()->childCreated){
         return TID_ERROR;
     }
 
@@ -87,19 +87,19 @@ start_process(void *file_name_)
     struct thread *child = thread_current();
     struct thread *parent = child->parent;
 
+    sema_up(&parent->childLoad);
+
     if (success)
     {
-        parent->isCreated = true;
-        list_push_back(&parent->child_list, &child->child_elem);
-        sema_up(&parent->waitForChildLoad);
-        sema_down(&child->waitForChildLoad);
+        parent->childCreated = true;
+        list_push_back(&parent->children, &child->child_elem);
+        sema_down(&child->childLoad);
     }
 
     /* If load failed, quit. */
     palloc_free_page(file_name);
     if (!success)
     {
-        sema_up(&parent->waitForChildLoad);
         exit(-1);
     }
 
@@ -130,7 +130,7 @@ int process_wait(tid_t child_tid)
     struct thread *cur = thread_current();  // Obtain a pointer to the current thread
     struct thread *child = NULL;           // Initialize a pointer to the child process as NULL
 
-    for (struct list_elem *listElement = list_begin(&cur->child_list); listElement != list_end(&cur->child_list);listElement = list_next(listElement)){
+    for (struct list_elem *listElement = list_begin(&cur->children); listElement != list_end(&cur->children);listElement = list_next(listElement)){
         // Get a pointer to the child process from the list element if exist
         struct thread *child_process = list_entry(listElement, struct thread, child_elem);
         // Check if the tid (thread ID) of the child process matches the child_tid parameter
@@ -147,11 +147,11 @@ int process_wait(tid_t child_tid)
         // Remove the child process from the parent's list of child processes
         list_remove(&child->child_elem);
         // Signal that the child process has exited by incrementing the sync semaphore
-        sema_up(&child->waitForChildLoad);
+        sema_up(&child->childLoad);
         // Block the parent process until the child process completes by decrementing the waitChild semaphore
-        sema_down(&cur->waitForChildExe);
+        sema_down(&cur->ChildExit);
         // Return the exit status of the child process
-        return cur->childState;
+        return cur->state;
     }
     // If no matching child process was found, return -1
     return -1;
@@ -164,35 +164,35 @@ void process_exit(void)
     struct thread *cur = thread_current();
 
     // close all open files belonging to the current process
-    while (!list_empty(&cur->file_list))
+    while (!list_empty(&cur->files))
     {
         // get the last open file from the filesList and remove it from the list
-        struct opened_file *opened_file = list_entry(list_pop_back(&cur->file_list), struct opened_file, elem);
+        struct opened_file *opened_file = list_entry(list_pop_back(&cur->files), struct opened_file, elem);
         file_close(opened_file->ptr);   // close the file associated with the open_file struct
         palloc_free_page(opened_file);   // free the memory allocated for the open_file struct
     }
 
     // release child resources and wake up parent if any child processes exist
-    while (!list_empty(&cur->child_list)){
+    while (!list_empty(&cur->children)){
         // get the last child process from the childList and remove it from the list
-        struct thread *child = list_entry(list_pop_back(&cur->child_list), struct thread, child_elem);
+        struct thread *child = list_entry(list_pop_back(&cur->children), struct thread, child_elem);
 
         child->parent = NULL;   // set the parent of the child process to NULL, indicating no parent process
 
-        sema_up(&child->waitForChildLoad);   //signal that the child process has exited by incrementing the semaphore
+        sema_up(&child->childLoad);   //signal that the child process has exited by incrementing the semaphore
 
     }
 // allow write access to the executable file and close it, if it exists
-    if (cur->currentExeFile != NULL)
+    if (cur->exeFile != NULL)
     {
-        file_allow_write(cur->currentExeFile);
-        file_close(cur->currentExeFile);
+        file_allow_write(cur->exeFile);
+        file_close(cur->exeFile);
     }
 
     // signal the parent process that the current process has exited by incrementing the waitChild semaphore
     struct thread *parent = cur->parent;
     if (parent != NULL)
-        sema_up(&parent->waitForChildExe);
+        sema_up(&parent->ChildExit);
 
     /* Destroy the current process's page directory and switch back
        to the kernel-only page directory. */
@@ -342,7 +342,7 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
         goto done;
     }
 
-    t->currentExeFile = file;
+    t->exeFile = file;
     file_deny_write(file);
 
     /* Read and verify executable header. */

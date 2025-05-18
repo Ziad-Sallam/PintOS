@@ -465,18 +465,18 @@ init_thread (struct thread *t, const char *name, int priority)
     t->magic = THREAD_MAGIC;
 
     /* intialization for the semaphores */
-    sema_init(&t->waitForChildExe, 0);
-    sema_init(&t->waitForChildLoad,0);
+    sema_init(&t->ChildExit, 0);
+    sema_init(&t->childLoad,0);
 
     /* intialization for the lists */
-    list_init(&t->child_list);
-    list_init(&t->file_list);
+    list_init(&t->children);
+    list_init(&t->files);
 
     /* intialization for the parent */
     t->parent = running_thread();
 
     /* intialization for the child status */
-    t->childState = -2;
+    t->state = -2;
 
     /* intialization for the file directory */
     t->fileDirectory = 2;

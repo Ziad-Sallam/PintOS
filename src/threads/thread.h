@@ -93,18 +93,17 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem; /* List element. */
 
-    // used for process system calls i.e. halt, exec, wait, exit
+    // --------------- phase 2 --------------------------------//
     struct thread* parent; /* pointer to the parent thread */
-    struct list child_list; /* list of children threads of that thread */
+    struct list children; /* list of children threads of that thread */
     struct list_elem child_elem; /* for dealing with the list */
-    struct file* currentExeFile; /* pointer to the current executable file */
-    int childState; /* the status of specific child thread */
-    bool isCreated; /* boolean variable to indicate successfull intialization used in parent - child sync*/
-    struct semaphore waitForChildExe; /* for making the parent wait for child exit */
-    struct semaphore waitForChildLoad; /* for synchronization between parent thread and child thread during loading of exe file of child thread */
+    struct file* exeFile; /* pointer to the current executable file */
+    int state; /* the status of specific child thread */
+    bool childCreated; /* boolean variable to indicate successfull intialization used in parent - child sync*/
+    struct semaphore ChildExit; /* for making the parent wait for child exit */
+    struct semaphore childLoad; /* for synchronization between parent thread and child thread during loading of exe file of child thread */
 
-    // used in file system calls i.e. read, write, open, close, tell, ...
-    struct list file_list; /* list of open files of the current thread */
+    struct list files; /* list of open files of the current thread */
     int fileDirectory; /* used in open system call */
 
 #ifdef USERPROG

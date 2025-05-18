@@ -171,7 +171,7 @@ exit(int status){
     struct thread *current = thread_current()->parent;
     printf("%s: exit(%d)\n", thread_current()->name, status);
     if (current)
-        current->childState = status;
+        current->state = status;
     thread_exit();
 }
 
@@ -224,7 +224,7 @@ int open(char *file_name)
     struct thread *cur = thread_current(); 
     cur->fileDirectory++; 
     open->fd = cur->fileDirectory;
-    list_push_back(&cur->file_list, &open->elem); // add the opened file to the list of opened files
+    list_push_back(&cur->files, &open->elem); // add the opened file to the list of opened files
     return open->fd;
 }
 
@@ -327,7 +327,7 @@ struct opened_file *fdToFile(int fd) {
     struct thread *t = thread_current();
     struct list_elem *e;
 
-    for (e = list_begin(&t->file_list); e != list_end(&t->file_list); e = list_next(e)) { // iterate through the list of opened files
+    for (e = list_begin(&t->files); e != list_end(&t->files); e = list_next(e)) { // iterate through the list of opened files
         struct opened_file *opened = list_entry(e, struct opened_file, elem);
         if (opened->fd == fd) {
             return opened;
