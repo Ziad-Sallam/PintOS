@@ -40,7 +40,7 @@ int read(int fd, void *buffer, int size);
 void seek(int fd, unsigned position);
 int tell(int fd);
 void close(int fd);
-struct opened_file *fd2file(int fd);
+struct opened_file *fdToFile(int fd);
 
 
 void syscall_init(void){
@@ -188,152 +188,150 @@ wait(int pid){
     return process_wait(pid);
 }
 
-/// calls the file system create function to create a file with the given name and size and return true if it's created
+// calls the file system create function to create a file with the given name and size and return true if it's created
 bool create(char *file, unsigned initial_size)
 {
-    bool signal;
-    lock_acquire(&lock);
-    signal = filesys_create(file, initial_size);
-    lock_release(&lock);
-    return signal;
+    bool created;
+    created = filesys_create(file, initial_size);
+    return created;
 }
 
-/// calls the file system remove function to remove a file with the given name and return true if it's removed
+// calls the file system remove function to remove a file with the given name and return true if it's removed
 bool remove(char *file)
 {
-    bool signal;
-    lock_acquire(&lock);
-    signal = filesys_remove(file);
-    lock_release(&lock);
-    return signal;
+    bool removed;
+    removed = filesys_remove(file);
+    return removed;
 }
 
-/// open a file with the given name and return the file descriptor of the opened file
+// open a file with the given name and return the file descriptor of the opened file and -1 if the file is not opened successfully
 int open(char *file_name)
 {
-    struct opened_file *open = palloc_get_page(0);
-    if (open == NULL){
+    if (file_name == NULL)
+        return -1;
+
+    struct opened_file *open = palloc_get_page(0); // allocate page for the opened file
+    if (open == NULL) // check if the allocation is successful
+        return -1;
+   
+    open->ptr = filesys_open(file_name); // open the file with the given name
+
+    if (open->ptr == NULL) { // check if the file is opened successfully
         palloc_free_page(open);
         return -1;
     }
-    lock_acquire(&lock);
-    open->ptr = filesys_open(file_name);
-    lock_release(&lock);
-    if (open->ptr == NULL)
-        return -1;
-    thread_current()->fileDirectory++;
-    open->fd = thread_current()->fileDirectory;
-    list_push_back(&thread_current()->file_list, &open->elem);
+
+    struct thread *cur = thread_current(); 
+    cur->fileDirectory++; 
+    open->fd = cur->fileDirectory;
+    list_push_back(&cur->file_list, &open->elem); // add the opened file to the list of opened files
     return open->fd;
 }
 
-/// get the size of the file with the given file descriptor
+// get the size of the file with the given file descriptor
 int fileSize(int fd)
 {
-    struct file *file = fd2file(fd)->ptr;
+    struct file *file = fdToFile(fd)->ptr;
     if (file == NULL)
         return -1;
     int fileLength;
-    lock_acquire(&lock);
     fileLength = file_length(file);
-    lock_release(&lock);
     return fileLength;
 }
 
-/// change the current position of the file with the given file descriptor to the given position
-void seek(int fd, unsigned position)
-{
-    struct file *file = fd2file(fd)->ptr;
-    if (file == NULL)
-        return;
-    lock_acquire(&lock);
-    file_seek(file, position);
-    lock_release(&lock);
-}
-
-/// get the current position of the file with the given file descriptor
-int tell(int fd)
-{
-    struct file *file = fd2file(fd)->ptr;
-    if (file == NULL)
-        return -1;
-    lock_acquire(&lock);
-    int position = file_tell(file);
-    lock_release(&lock);
-    return position;
-}
-
-/// close the file with the given file descriptor and remove it from the opened files list
-void close(int fd)
-{
-    struct opened_file *file = fd2file(fd);
-    if (file == NULL)
-        return;
-    lock_acquire(&lock);
-    file_close(file->ptr);
-    lock_release(&lock);
-    list_remove(&file->elem); //palloc_free_page(file);
-}
-
-/// writes (length) bytes from buffer to the open file fd.
-int write(int fd, void *buffer, int length)
-{
-    if (fd == 1){
-        lock_acquire(&lock);
-        putbuf(buffer, length);
-        int sizeActual = length;
-        lock_release(&lock);
-        return sizeActual;
-    }
-    struct file *file = fd2file(fd)->ptr;
-    lock_acquire(&lock);
-    if (file == NULL)
-        return -1;
-    int sizeActual = (int)file_write(file, buffer, length);
-    lock_release(&lock);
-    return sizeActual;
-}
-
-/// read from file or from buffer
+// read from file or keyboard TO the buffer
 int read(int fd, void *buffer, int length)
 {
-    if (fd == 0)
-    {//read from keyboard
+    if (fd == 0){   // read from keyboard
 
         for (size_t i = 0; i < length; i++)
         {
-            lock_acquire(&lock);// to check no write
+            lock_acquire(&lock);// to garantee no write
             ((char*)buffer)[i] = input_getc();
             lock_release(&lock);
         }
         return length;
 
     }
-    else {
-// read from file
+    else {  // read from file
         struct thread* t = thread_current();
-        struct file* f = fd2file(fd)->ptr;
+        struct file* f = fdToFile(fd)->ptr;
 
         if (f == NULL)
         {
             return -1;//no opened file
         }
 
-        int result;//the actual number of bytes be read
-        lock_acquire(&lock);
+        int result; 
+        lock_acquire(&lock); // to garantee no write
         result = file_read(f,buffer,length);
         lock_release(&lock);
         return result;
     }
 }
 
-/// convert from fd to a file object
-struct opened_file *fd2file(int fd){
+// writes (length) bytes from buffer to the open file fd.
+int write(int fd, void *buffer, int length)
+{
+    int sizeActual = 0;
+    if (fd == 1){ // write to the console
+        lock_acquire(&lock);
+        putbuf(buffer, length);
+        sizeActual = length;
+        lock_release(&lock);
+    }else{
+    struct file *file = fdToFile(fd)->ptr;
+    lock_acquire(&lock);
+    if (file == NULL)
+        return -1;
+    sizeActual = (int)file_write(file, buffer, length);
+    lock_release(&lock);
+    }
+    return sizeActual;
+}
+
+// change the current position of the file with the given file descriptor to the given position
+void seek(int fd, unsigned position)
+{
+    struct file *file = fdToFile(fd)->ptr;
+    if (file == NULL)
+        return;
+    file_seek(file, position);
+}
+
+// get the current position of the file with the given file descriptor
+int tell(int fd)
+{
+    struct file *file = fdToFile(fd)->ptr;
+    if (file == NULL)
+        return -1;
+    int position = file_tell(file);
+    return position;
+}
+
+// close the file with the given file descriptor and remove it from the opened files list
+void close(int fd)
+{
+    struct opened_file *file = fdToFile(fd);
+    if (file == NULL)
+        return;
+    file_close(file->ptr);
+    list_remove(&file->elem);
+    palloc_free_page(file); // free the page allocated for the opened file
     struct thread *t = thread_current();
-    for (struct list_elem *e = list_begin(&t->file_list); e != list_end(&t->file_list);e = list_next(e)){
+    t->fileDirectory--;
+}
+
+// map the file descriptor to the opened file
+struct opened_file *fdToFile(int fd) {
+    struct thread *t = thread_current();
+    struct list_elem *e;
+
+    for (e = list_begin(&t->file_list); e != list_end(&t->file_list); e = list_next(e)) { // iterate through the list of opened files
         struct opened_file *opened = list_entry(e, struct opened_file, elem);
-        if (opened->fd == fd)
+        if (opened->fd == fd) {
             return opened;
+        }
     }
     return NULL;
 }
